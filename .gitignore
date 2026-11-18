@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Raw Argoverse data
+argoverse_sample/
+pittsburgh_sample/
+
+# Generated outputs
+outputs/
+*.html
+pittsburgh_scenario_locations.csv
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# VS Code and Windows
+.vscode/
+Thumbs.db
+.DS_Store
