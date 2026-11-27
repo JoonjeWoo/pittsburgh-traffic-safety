@@ -6,6 +6,7 @@ from pyproj import Transformer
 import io
 import pandas as pd
 from pathlib import Path
+import os
 
 s3 = boto3.client(
     "s3",
@@ -138,7 +139,6 @@ def get_scenario_locations(s3, bucket, pittsburgh_scenarios):
 def upload_to_s3(local_file, s3_key):
     # Use the restricted IAM user profile
     session = boto3.Session(
-        profile_name="pittsburgh-dev",
         region_name="us-east-2"
     )
 
@@ -192,10 +192,14 @@ def main():
 
 
     # Step 5: Upload GPS results to private AWS S3
-    upload_to_s3(
-        "outputs/pittsburgh_scenario_locations.csv",
-        "processed/pittsburgh_scenario_locations.csv"
-    )
+    if os.getenv("SKIP_S3_UPLOAD") == "1":
+        print("S3 upload skipped for local Docker test.")
+    else:
+        upload_to_s3(
+            "outputs/pittsburgh_scenario_locations.csv",
+            "processed/pittsburgh_scenario_locations.csv"
+        )
+
 
 
 

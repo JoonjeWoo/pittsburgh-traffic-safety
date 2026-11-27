@@ -1,0 +1,35 @@
+
+# Git files
+.git/
+.gitignore
+
+# Python temporary files
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local AWS credentials
+.aws/
+.env
+.env.*
+
+# Argoverse datasets
+argoverse_sample/
+pittsburgh_sample/
+
+# Local outputs
+output/
+outputs/
+
+# Team data and analysis
+data/
+macro_gis/
+notebooks/
+
+# Generated maps
+*.html
+
+# OS temporary files
+.DS_Store
+Thumbs.db
