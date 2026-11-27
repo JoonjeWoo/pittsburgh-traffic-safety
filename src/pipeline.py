@@ -135,11 +135,30 @@ def get_scenario_locations(s3, bucket, pittsburgh_scenarios):
 
     return scenario_locations
 
+def upload_to_s3(local_file, s3_key):
+    # Use the restricted IAM user profile
+    session = boto3.Session(
+        profile_name="pittsburgh-dev",
+        region_name="us-east-2"
+    )
+
+    s3_upload = session.client("s3")
+
+    
+    s3_upload.upload_file(
+        local_file,
+        "pittsburgh-traffic-safety-data",
+        s3_key
+    )
+
+    print("Uploaded to S3:", s3_key)
+
+
 
 def main():
     print("Argoverse 2 pipeline")
 
-    Path("output").mkdir(parents=True, exist_ok=True)
+    Path("outputs").mkdir(parents=True, exist_ok=True)
 
     folders = get_scenario_folders(
         s3, bucket, prefix, max_folders=100
@@ -170,6 +189,14 @@ def main():
 
     print("Pittsburgh scenarios mapped:", len(locations_df))
     print("GPS coordinates saved successfully!")
+
+
+    # Step 5: Upload GPS results to private AWS S3
+    upload_to_s3(
+        "outputs/pittsburgh_scenario_locations.csv",
+        "processed/pittsburgh_scenario_locations.csv"
+    )
+
 
 
 if __name__ == "__main__":
