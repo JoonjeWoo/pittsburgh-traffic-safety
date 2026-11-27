@@ -35,7 +35,7 @@ Run in order from the repo root with `macro_gis/.venv/bin/python macro_gis/scrip
 | 1 | `01_clean_pool_crashes.py` | `processed/pgh_crashes_2020_2022.geojson`: 10,391 crashes |
 | 2 | `02_build_intersections_osm.py` | `processed/pgh_intersections_2021.geojson`: 6,896 intersections (OSM, 1 Jul 2021) |
 | 3 | `03_build_intersection_table.py` | `outputs/pgh_intersections.csv`: the model table (also `processed/pgh_intersections_joined.geojson` for ArcGIS) |
-| 4 | traffic volumes (next) | adds volume columns to the same table |
+| 4 | `04_add_traffic_volumes.py` | adds `aadt_major`, `aadt_minor` and their sources to the same CSV and GeoJSON |
 
 ## Intersection table: `data/outputs/pgh_intersections.csv`
 
@@ -63,6 +63,9 @@ One row per intersection. "Within 25 m" means within 25 m of the intersection po
 | `speed_limit_max` | Highest posted speed limit among those streets |
 | `osm_top_class` | Busiest OSM road type there (fallback when the centerlines don't match) |
 | `prt_stops_100m` | Transit stops within 100 m (stand-in for pedestrian activity) |
+| `aadt_major` | Daily traffic (vehicles/day, both directions) on the busier street (step 4) |
+| `aadt_minor` | Daily traffic on the quieter street (step 4) |
+| `aadt_major_source`, `aadt_minor_source` | `penndot` (PennDOT AADT), `city_count` (city count, scaled), `class_median` (typical value for the road class), or `no_street_data` (blank) |
 
 Missing values: 192 intersections (2.8%) have no city centerline within 25 m, so `max_lanes`,
 `road_class_*`, `speed_limit_max` and `street_names` are blank there.
@@ -91,6 +94,8 @@ Downloaded 26 Nov 2026. Re-download from these URLs to reproduce.
 | `neighborhoods.geojson` | 90 polygons (`hood`) | neighborhood fixed effects | [WPRDC: Neighborhoods](https://data.wprdc.org/dataset/neighborhoods2) |
 | `pgh_city_boundary.geojson` | 3 polygons (dissolve before use) | clip and raster extent | City of Pittsburgh boundary (from ArcGIS Online) |
 | `high_injury_network.geojson` | 111 lines | validation only, **not** a predictor | [WPRDC: High Injury Network](https://data.wprdc.org/dataset/high-injury-network) |
+| `penndot_rmstraffic_pgh.geojson` | 1,159 segments (state and federal-aid routes) | `aadt_major`, `aadt_minor` | [PennDOT RMSTRAFFIC (Traffic Volumes)](https://gis.penndot.pa.gov/gis/rest/services/opendata/roadwaytraffic/MapServer/0); step 4 downloads it if missing |
+| `city_traffic_counts.geojson` | 419 counters, 285 with daily car counts | `aadt_*` where PennDOT has none | [WPRDC: City of Pittsburgh Traffic Count](https://data.wprdc.org/dataset/traffic-count-data-city-of-pittsburgh) |
 
 ## Data vintage (checked 26 Nov 2026)
 
@@ -107,6 +112,8 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
 | City signs (stop signs) | through 2021 (WPRDC: feed broke in 2021; latest install date Jul 2021) | good |
 | City intersection markings (crosswalks) | through 2021 (feed broke; the separate crosswalk layer stops in 2018 with nearly the same count) | good |
 | OSM intersections | queried as of 1 Jul 2021 | good |
+| PennDOT traffic volumes | current AADT; counts mostly 2022–2026 | after the window; relative volumes change slowly |
+| City traffic counts | counted 2017–2021 | good |
 | Street centerlines | Apr 2026 bulk reload; no edit history | snapshot after the window |
 | PRT stops | Oct 2026 schedule (feed 2610) | locations mostly stable; trip counts are 2026 service |
 | Neighborhoods | 2010 census-based boundaries | static |
@@ -132,6 +139,13 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
   and humps target mid-block speeding.
 - **Intersections with no city street data** (192, blank `road_class_major`) stay in the table; the team
   leans towards dropping them from the model. Nick decides.
+- **Traffic volumes** (Prof. Qian: crashes track traffic, so model risk per vehicle). For each intersection,
+  the busier and quieter street's daily traffic, preferring PennDOT AADT on routes within 25 m, then a city
+  count on a street segment meeting there, then the median measured volume for the road class.
+  Limited-access roads (I-279, I-376, I-579, PA-28) are excluded so junctions under or beside them don't
+  pick up freeway traffic. Divided roads are recorded one direction per segment, so directions are added.
+  City counts run 1.25x PennDOT's annual average on the 20 segments measured by both, so they are
+  divided by 1.25.
 
 ## Known data limits
 
@@ -140,5 +154,10 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
 - **Traffic calming:** the only public layer is speed humps (79 points). WPRDC notes its feed stopped
   updating in 2021, which still covers most of the 2020–2022 crash window.
 - **Speed limit:** about 94% of centerline segments are posted at 25 mph, so it varies little.
+- **Traffic volumes are estimated for most intersections:** the busier street is measured at 41% of
+  intersections (PennDOT 39%, city counts 2%) and the quieter street at 10%; the rest use the road-class
+  median (local streets: 946 vehicles/day). That median understates busy local streets in dense areas
+  (e.g. Bayard St & N Dithridge St in Oakland), so raw crashes-per-vehicle rates are unreliable there.
+  Use the model's predictions, not raw rates, to rank hotspots. Volumes at highway interchanges are rough.
 - **Street centerlines in `data/`:** the committed `pittsburgh_street_centerlines.csv` holds only a header
   row and has no geometry. Use the GeoJSON here instead.
