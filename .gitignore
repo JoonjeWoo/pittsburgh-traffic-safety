@@ -14,6 +14,18 @@ outputs/
 *.html
 pittsburgh_scenario_locations.csv
 
+# Macro GIS: keep source and intermediate geodata out of Git; share small CSVs in outputs/
+macro_gis/data/raw/
+macro_gis/data/processed/
+!macro_gis/data/outputs/
+macro_gis/data/outputs/*.geojson
+macro_gis/data/outputs/*.tif
+macro_gis/data/outputs/*.tiff
+macro_gis/data/outputs/*.shp
+macro_gis/data/outputs/*.shx
+macro_gis/data/outputs/*.dbf
+macro_gis/data/outputs/*.prj
+
 # Jupyter temporary files
 .ipynb_checkpoints/
 
