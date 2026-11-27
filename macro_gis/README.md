@@ -26,6 +26,47 @@ macro_gis/
 Crash CSVs are not duplicated here: they live in the repo's top-level `data/` folder
 (`WRPDC_2020_Crash_Data.csv`, `WRPDC_2021_Crash_Data.csv`, `WRPDC_2022_Crash_Data.csv`).
 
+## Pipeline
+
+Run in order from the repo root with `macro_gis/.venv/bin/python macro_gis/scripts/<script>`.
+
+| Step | Script | Main output |
+|---|---|---|
+| 1 | `01_clean_pool_crashes.py` | `processed/pgh_crashes_2020_2022.geojson`: 10,391 crashes |
+| 2 | `02_build_intersections_osm.py` | `processed/pgh_intersections_2021.geojson`: 6,896 intersections (OSM, 1 Jul 2021) |
+| 3 | `03_build_intersection_table.py` | `outputs/pgh_intersections.csv`: the model table (also `processed/pgh_intersections_joined.geojson` for ArcGIS) |
+| 4 | traffic volumes (next) | adds volume columns to the same table |
+
+## Intersection table: `data/outputs/pgh_intersections.csv`
+
+One row per intersection. "Within 25 m" means within 25 m of the intersection point.
+
+| Column | Meaning |
+|---|---|
+| `int_id` | Intersection ID (stable for the 1 Jul 2021 OSM snapshot) |
+| `centroid_lat`, `centroid_lon` | Intersection location (WGS84) |
+| `neighborhood` | City neighborhood (for fixed effects) |
+| `street_names` | Named city streets meeting there |
+| `crashes_int` | **Main outcome.** 2020–2022 crashes police-coded as at an intersection, assigned to their nearest intersection within 25 m |
+| `crashes_all` | Same, but all crashes regardless of police coding (robustness check) |
+| `vru_crashes_int`, `vru_crashes_all` | Crashes involving a pedestrian or cyclist (police-coded / all) |
+| `injury_crashes_int` | Police-coded intersection crashes with an injury or death |
+| `has_signal` | DOMI traffic signal within 25 m |
+| `has_stop_sign`, `stop_sign_count` | Stop signs (MUTCD R1-1) within 25 m |
+| `has_crosswalk` | City-inventory crosswalk within 25 m |
+| `has_hiviz_crosswalk` | High-visibility (continental or ladder) crosswalk within 25 m |
+| `has_bike_lane` | BikePGH 2019 bike lane (painted or protected) within 25 m |
+| `has_speed_hump_25m`, `has_speed_hump_100m` | Speed hump within 25 m / within 100 m (humps sit mid-block) |
+| `n_legs` | Number of streets meeting (OSM) |
+| `max_lanes` | Most lanes on any street segment within 25 m (city centerlines) |
+| `road_class_major`, `road_class_minor` | Busiest and quietest DOMI road class among the streets meeting |
+| `speed_limit_max` | Highest posted speed limit among those streets |
+| `osm_top_class` | Busiest OSM road type there (fallback when the centerlines don't match) |
+| `prt_stops_100m` | Transit stops within 100 m (stand-in for pedestrian activity) |
+
+Missing values: 192 intersections (2.8%) have no city centerline within 25 m, so `max_lanes`,
+`road_class_*`, `speed_limit_max` and `street_names` are blank there.
+
 ## Coordinate systems
 
 All source layers are WGS84 (`EPSG:4326`) except the protected bike lanes (`EPSG:2272`, PA State Plane
@@ -84,6 +125,13 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
 - **Crosswalks come from the city's markings inventory, not OSM.** A marked crossing lies within 25 m of
   8% of intersections in OSM (mid-2021) vs 24% in the city inventory; OSM was still being mapped then.
 - **Controls added beyond the original plan:** stop signs (city signs, MUTCD `R1-1`) and intersection legs.
+- **Traffic calming = speed hump within 100 m** (`has_speed_hump_100m`, 99 intersections). Humps sit
+  mid-block, and only 12 intersections have one within 25 m. `has_speed_hump_25m` stays in the table for
+  reference only. If the effect is insignificant, read it as "no measurable link between calming on the
+  approaches and crashes at the intersection", not proof of no effect: 99 treated sites is a small sample,
+  and humps target mid-block speeding.
+- **Intersections with no city street data** (192, blank `road_class_major`) stay in the table; the team
+  leans towards dropping them from the model. Nick decides.
 
 ## Known data limits
 
