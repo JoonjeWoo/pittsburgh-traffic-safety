@@ -22,6 +22,13 @@ Where each volume comes from, in order of preference
                   scaled to PennDOT's annual average (the city's short counts run higher)
     class_median  no measurement: the typical (median) measured volume for that DOMI road class
 
+Out-of-line local-road counts are skipped. PennDOT's counts on city-owned streets (route numbers starting
+with H) are sparse short counts, and a few are far below the segments on either side of them (e.g. 197
+vehicles/day on Penn Ave in the Strip, between segments of 3,889 and 2,354). A local-road segment under
+one-fifth of the median of its touching segments on the same route is dropped, so those intersections fall
+back to a city count or the class median. State routes are not checked: their low segments are mostly
+ramps, which really do carry less than the road they leave, and none of them sets a busier-street volume.
+
 How this feeds the analysis
     Stage 1: ln(aadt_major) and ln(aadt_minor) enter Nick's model as exposure, so the infrastructure
              coefficients describe risk per vehicle. They also become a raster layer.
@@ -65,6 +72,8 @@ MATCH_M = 15              # PennDOT segment midpoint to city street segment, for
 # Limited-access roads never enter an intersection at street level, so their traffic must not be counted
 # at junctions they pass over or beside: I-279, I-376, I-579, and PA-28 (expressway through the city).
 LIMITED_ACCESS = {"0279", "0376", "0579", "0028"}
+OUT_OF_LINE_RATIO = 0.2   # a local-road count under 1/5 of its neighbours on the same route is not used
+NEIGHBOUR_M = 30          # segments of the same route within 30 m count as touching
 CLASS_RANK = {"Principal Arterial": 1, "Minor Arterial": 2, "Collector": 3, "Local": 4, "Alley": 5}
 VOLUME_COLS = ["aadt_major", "aadt_minor", "aadt_major_source", "aadt_minor_source"]
 
@@ -109,6 +118,18 @@ def route_volumes(segs: pd.DataFrame) -> list:
     return sorted(out, reverse=True)
 
 
+def split_out_of_line_local(penndot: gpd.GeoDataFrame) -> tuple:
+    """Separate local-road (H-route) segments whose count is under OUT_OF_LINE_RATIO x the median of the
+    touching segments on the same route. Returns (segments kept, segments dropped with their neighbours)."""
+    seg = penndot.reset_index(drop=True)
+    reach = gpd.GeoDataFrame(seg[["ST_RT_NO", "CUR_AADT"]], geometry=seg.buffer(NEIGHBOUR_M), crs=seg.crs)
+    pairs = gpd.sjoin(seg[["ST_RT_NO", "geometry"]], reach, predicate="intersects")
+    pairs = pairs[(pairs["ST_RT_NO_left"] == pairs["ST_RT_NO_right"]) & (pairs.index != pairs["index_right"])]
+    seg["neighbour_median"] = pairs.groupby(level=0)["CUR_AADT"].median()
+    bad = seg["ST_RT_NO"].str.startswith("H") & (seg["CUR_AADT"] < OUT_OF_LINE_RATIO * seg["neighbour_median"])
+    return seg[~bad].drop(columns="neighbour_median"), seg[bad]
+
+
 def main() -> None:
     download_inputs()
     ints = gpd.read_file(TABLE_GEO).to_crs(UTM)
@@ -117,6 +138,7 @@ def main() -> None:
 
     penndot = gpd.read_file(PENNDOT_FILE).to_crs(UTM)
     penndot = penndot[~penndot["ST_RT_NO"].isin(LIMITED_ACCESS) & (penndot["CUR_AADT"] > 0)]
+    penndot, out_of_line = split_out_of_line_local(penndot)
     streets = gpd.read_file(RAW / "pgh_street_centerlines.geojson", columns=["domi_class"]).to_crs(UTM)
     streets = streets.reset_index(names="seg_id")
     streets["rank"] = streets["domi_class"].map(CLASS_RANK).fillna(6)
@@ -214,6 +236,9 @@ def main() -> None:
     # 9. Report.
     print(f"\nPENNDOT SEGMENTS USED: {len(penndot):,} (limited-access roads removed) | "
           f"CITY COUNTS MATCHED: {len(counts):,}")
+    print(f"LOCAL-ROAD COUNTS SKIPPED as out of line with their neighbours: {len(out_of_line)}")
+    print("  " + out_of_line[["ST_RT_NO", "DIR_IND", "CUR_AADT", "neighbour_median"]]
+          .round(0).to_string(index=False).replace("\n", "\n  "))
     print(f"CITY COUNT / PENNDOT AADT on {len(both)} segments measured by both: median {ratio:.2f} "
           f"-> city counts divided by {ratio:.2f}")
 

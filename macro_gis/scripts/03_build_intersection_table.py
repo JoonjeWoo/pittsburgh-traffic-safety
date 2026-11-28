@@ -25,6 +25,7 @@ Traffic volumes are added in step 4.
 Run from anywhere:  macro_gis/.venv/bin/python macro_gis/scripts/03_build_intersection_table.py
 """
 
+import re
 from pathlib import Path
 
 import geopandas as gpd
@@ -63,6 +64,15 @@ def count_near(ints: gpd.GeoDataFrame, features: gpd.GeoDataFrame, radius: float
     zones = gpd.GeoDataFrame({"int_id": ints["int_id"]}, geometry=ints.geometry.buffer(radius), crs=UTM)
     hits = gpd.sjoin(features[["geometry"]], zones, predicate="intersects")
     return hits.groupby("int_id").size().reindex(ints["int_id"], fill_value=0).to_numpy()
+
+
+def tidy_street(name: str) -> str:
+    """Title-case a city street name, fixing what str.title() gets wrong (for map labels and slides):
+    23Rd St -> 23rd St, Mckees Rocks -> McKees Rocks, Blvd Of The Allies -> Blvd of the Allies."""
+    name = name.title()
+    name = re.sub(r"(\d)(St|Nd|Rd|Th)\b", lambda m: m.group(1) + m.group(2).lower(), name)
+    name = re.sub(r"\bMc([a-z])", lambda m: "Mc" + m.group(1).upper(), name)
+    return re.sub(r"(?<=\w )(Of|The|And)(?= )", lambda m: m.group(1).lower(), name)
 
 
 def main() -> None:
@@ -129,7 +139,7 @@ def main() -> None:
         "road_class_minor": seg.groupby("int_id")["rank"].max().map(rank_to_class),
         "speed_limit_max": seg.groupby("int_id")["speedlimit"].max(),
         "street_names": named.groupby("int_id")["streetname"].agg(
-            lambda s: " & ".join(sorted(set(s.str.title())))),
+            lambda s: " & ".join(sorted(set(s.map(tidy_street))))),
     })
     ints = ints.merge(streets, left_on="int_id", right_index=True, how="left")
 

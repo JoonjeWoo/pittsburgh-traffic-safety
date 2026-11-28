@@ -146,6 +146,11 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
   pick up freeway traffic. Divided roads are recorded one direction per segment, so directions are added.
   City counts run 1.25x PennDOT's annual average on the 20 segments measured by both, so they are
   divided by 1.25.
+- **Out-of-line local-road counts are skipped (27 Nov).** PennDOT's counts on city-owned streets (routes
+  starting with H) are sparse short counts. A segment under one-fifth of its touching segments on the same
+  route is treated as a bad count (4 segments; e.g. 197 vehicles/day on Penn Ave in the Strip between
+  segments of 3,889 and 2,354), and those intersections fall back to a city count or the class median.
+  This changed the busier-street volume at 12 intersections (Penn Ave 12th–15th St, W North Ave).
 
 ## Known data limits
 
@@ -156,7 +161,7 @@ NeurIPS 2021, so it was recorded in 2021 or earlier.
 - **Speed limit:** about 94% of centerline segments are posted at 25 mph, so it varies little.
 - **Traffic volumes are estimated for most intersections:** the busier street is measured at 41% of
   intersections (PennDOT 39%, city counts 2%) and the quieter street at 10%; the rest use the road-class
-  median (local streets: 946 vehicles/day). That median understates busy local streets in dense areas
+  median (local streets: 960 vehicles/day). That median understates busy local streets in dense areas
   (e.g. Bayard St & N Dithridge St in Oakland), so raw crashes-per-vehicle rates are unreliable there.
   Use the model's predictions, not raw rates, to rank hotspots. Volumes at highway interchanges are rough.
 - **Street centerlines in `data/`:** the committed `pittsburgh_street_centerlines.csv` holds only a header
